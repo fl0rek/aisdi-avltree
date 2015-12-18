@@ -32,6 +32,7 @@ ALL RIGHTS RESERVED
 
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 
 #ifdef _SUNOS
 #include "/materialy/AISDI/tree/TreeMap.h"
@@ -41,26 +42,47 @@ ALL RIGHTS RESERVED
 
 /// A helper class.
 class TreeMapDetail {
-protected:
-        friend class TreeMap;
+private:
         typedef TreeNode node;
-        static TreeNode* end_guard;
 
         unsigned int tree_size = 0;
+
+        node* n_begin;
+        node* const n_end;
+public:
+        //friend class TreeMap;
+
+
+        node* begin() const {
+                return this->n_begin;
+        }
+        node* begin(node* n) {
+                return this->n_begin = n;
+        }
+
+        node* const end() const {
+                return this->n_end;
+        }
+
+        TreeMapDetail(node* begin, node* end) : n_begin(begin), n_end(end) {
+        }
 
         unsigned size() const {
                 return this->tree_size;
         }
         unsigned size(int diff) {
-                this->tree_size = diff;
-                return this->tree_size;
                 return this->tree_size += diff;
         }
+
         #define bf b
         #define l left
         #define r right
         #define p parent
+        #ifndef _DEBUG
+        # define cout  cout; 0 && std::cout
+        #endif
         static void ll_rotate(node* origin, node** root) {
+                std::cout << "ll" << std::endl;
                 node* n = origin;
                 node* ln = n->l;
                 node* lrn = ln->r;
@@ -87,6 +109,7 @@ protected:
         }
 
         static void rr_rotate(node* origin, node** root) {
+                std::cout << "rr" << std::endl;
                 node* n = origin;
                 node* rn = n->r;
                 node* rln = rn->l;
@@ -113,6 +136,7 @@ protected:
         }
 
         static void rl_rotate(node* origin, node** root) {
+                std::cout << "rl" << std::endl;
                 node* n    = origin;
                 node* rn   = n->r;
                 node* rln  = rn->l;
@@ -152,10 +176,11 @@ protected:
         }
 
         static void lr_rotate(node* origin, node** root) {
+                std::cout << "lr" << std::endl;
                 node* n    = origin;
                 node* ln   = n->l;
                 node* lrn  = ln->r;
-                node* lrln = ln->r;
+                node* lrln = lrn->l;
                 node* lrrn = lrn->r;
 
                 if(*root == n)
@@ -298,8 +323,8 @@ protected:
                         while(n->r)
                                 n = n->r;
                 } else {
-                        while(!(n->l) || n->l->p != n) {
-                                if(!(n = n->l))
+                        while(!(n->p) || n->p->r != n) {
+                                if(!(n = n->p))
                                         return nullptr;
                         }
                         n = n->p;
@@ -307,11 +332,11 @@ protected:
                 return n;
         }
 
-        static void insert(node* n, node* at, node** root) {
-                if(n->data.first < at->data.first) {
+        static void insert(node* n, node* at, node** root, node* end) {
+                if(n->data.first < at->data.first || at == end) {
                         //left
                         if(at->l)
-                                insert(n, at->l, root);
+                                insert(n, at->l, root, end);
                         else {
                                 at->l = n;
                                 n->p = at;
@@ -325,7 +350,7 @@ protected:
                 } else {
                         //right
                         if(at->r)
-                                insert(n, at->r, root);
+                                insert(n, at->r, root, end);
                         else {
                                 at->r = n;
                                 n->p = at;
@@ -392,32 +417,89 @@ protected:
                         print_subtree(out, n->r, depth+1);
         }
 
-        static bool sanity_check(TreeMap& t) {
-                auto current = t.begin();
-                for(auto prev = current++; current != t.end() ;prev++, current++)
-                        if(prev->first >= current->first)
-                                return false;
-                return true;
+        static bool node_sanity_check(node* n) {
+                bool status = true;
+                if(n->l != nullptr && n->l->p != n) {
+                        std::cout << "f at " << n->data.first << " left" << std::endl;
+                        status = false;
+                }
+                if(n->r != nullptr && n->r->p != n) {
+                        std::cout << "f at " << n->data.first << " right" << std::endl;
+                        status = false;
+                }
+                return status;
+        }
+
+        static node* clone_subtree(node* n, node* parent) {
+                //std::cout << "clonnning" << std::endl;
+                if(!n)
+                        return n;
+
+                node::T newdata(n->data);
+                node* nn = new node(newdata, n->bf, parent);
+
+                nn->l = clone_subtree(n->l, nn);
+                nn->r = clone_subtree(n->r, nn);
+
+                return nn;
+        }
+
+        static void remove_subtree(node* n) {
+                if(n == nullptr)
+                        return;
+
+                remove_subtree(n->l);
+                remove_subtree(n->r);
+                delete n;
         }
 public:
         static std::string print_tree(TreeMap& t) {
                 std::ostringstream oss;
+                oss << "begin : " << t.detail->n_begin->data.first <<
+                        "\n end : " << t.detail->n_end->data.first << "\n";
                 TreeMapDetail::print_subtree(oss, t.root, 0);
                 return oss.str();
         }
 
+        static bool sanity_check(TreeMap& t) {
+                if(!sanity_check(t.root)) {
+                        std::cout << "tree integrity error";
+                        return false;
+                }
+                auto current = t.begin();
+                for(auto prev = current++; current != t.end() ;prev++, current++)
+                        if(prev->first >= current->first) {
+                                std::cout << prev->first << " >= " << current->first << "\n";
+                                return false;
+                        }
+                return true;
+        }
 
+        static bool sanity_check(node* n) {
+                bool res = true;
+                res &= node_sanity_check(n);
+                res &= (n->l && sanity_check(n->l)) || !n->l;
+                res &= (n->r && sanity_check(n->r)) || !n->r;
+                return res;
+        }
+
+        #ifdef cout
+        # undef cout
+        #endif
         #undef bf
         #undef l
         #undef r
         #undef p
 };
 
+bool sanity_check(TreeMap& t) {
+        return TreeMapDetail::sanity_check(t);
+}
+
 std::string print_tree(TreeMap& t) {
         return TreeMapDetail::print_tree(t);
 }
 
-TreeNode* TreeMapDetail::end_guard = new TreeNode(TreeNode::T{});
 
 //////////////////////////////////////////////////////////////////////////////
 // TreeMap and TreeMap::iterator methods
@@ -425,17 +507,31 @@ TreeNode* TreeMapDetail::end_guard = new TreeNode(TreeNode::T{});
 
 TreeMap::TreeMap() {
         this->root = nullptr;
-        this->detail = new TreeMapDetail;
+        this->detail = nullptr;
+        this->clear();
 };
 
 /// Content of existing TreeMap object is copied into the new object.
 TreeMap::TreeMap( const TreeMap& m ) {
-        //TODO: just do it
+        this->root = this->detail->clone_subtree(m.root, nullptr);
+
+        Node* begin = this->root;
+        while(begin->left && (begin = begin->left));
+
+        Node* end = this->root;
+        while(end->right && (end = end->right));
+
+        this->detail = new TreeMapDetail(begin, end);
 };
 
 TreeMap::~TreeMap() {
-        clear();
+        this->clear();
+
+        delete this->root;
+        this->root = nullptr;
+
         delete this->detail;
+        this->detail = nullptr;
 };
 
 // Inserts an element into the map.
@@ -457,14 +553,22 @@ std::pair<TreeMap::iterator, bool> TreeMap::insert(const std::pair<Key, Val>& en
 // Inserts an element into the map.
 // This method assumes there is no value asociated with
 // such a key in the map.
-
 TreeMap::iterator TreeMap::unsafe_insert(const std::pair<Key, Val>& entry) {
         detail->size(+1);
         Node* n = new Node(entry);
-        if(this->empty())
+        /*
+        if(this->empty()) {
                 this->root = n;
-        else
-                detail->insert(n, this->root, &this->root);
+                this->detail->begin(n);
+                std::cout << "new root" << std::endl;
+        } else {
+        */
+        if( this->end() == this->begin() || n->data.first < this->detail->begin()->data.first ) {
+                this->detail->begin(n);
+        }
+        detail->insert(n, this->root, &this->root, this->end().node);
+        //}
+        //std::cout << this->detail->print_tree(*this);
         return iterator(n);
 }
 
@@ -472,15 +576,16 @@ TreeMap::iterator TreeMap::unsafe_insert(const std::pair<Key, Val>& entry) {
 // that has a key equivalent to the specified one or the location succeeding the
 // last element in the map if there is no match for the key.
 TreeMap::iterator TreeMap::find(const Key& k) {
+        //std::cout << "Searching for " << k << std::endl;
         // TODO: shortcircuting if k between current and child
         Node* current = this->root;
         while(true) {
                 if(current == nullptr)
                         return this->end();
+                else if(current->data.first > k || current == this->end().node)
+                        current = current->left;
                 else if(current->data.first == k)
                         return iterator(current);
-                else if(current->data.first > k)
-                        current = current->left;
                 else
                         current = current->right;
         }
@@ -503,7 +608,7 @@ TreeMap::Val& TreeMap::operator[](const Key& k) {
 
 // Tests if a map is empty.
 bool TreeMap::empty( ) const {
-        return root == nullptr;
+        return !this->size();
 }
 
 // Returns the number of elements in the map.
@@ -522,7 +627,11 @@ TreeMap::iterator TreeMap::erase(TreeMap::iterator i) {
         Node* next = this->detail->next(i.node);
         this->detail->size(-1);
         this->detail->delete_node(i.node, &this->root);
-        std::cout << i.node->data.first << std::endl;
+        //std::cout << i.node->data.first << std::endl;
+
+        if(i == this->begin()) {
+                this->detail->begin(next);
+        }
         delete i.node;
         return iterator(next);
 }
@@ -533,7 +642,7 @@ TreeMap::iterator TreeMap::erase(TreeMap::iterator i) {
 // @returns The iterator that designates the first element remaining beyond any elements removed.
 TreeMap::iterator TreeMap::erase(TreeMap::iterator f, TreeMap::iterator l) {
         while(f != l) {
-                std::cout << "e" << f.node->data.first << std::endl;
+                //std::cout << "e" << f.node->data.first << std::endl;
                 this->erase(f++);
         }
         return l;
@@ -547,14 +656,17 @@ TreeMap::size_type TreeMap::erase(const Key& key) {
         if(it == this->end())
                 return 0;
         this->erase(it);
-        return 0;
+        return 1;
 }
 
 // Erases all the elements of a map.
 void TreeMap::clear() {
-        //TODO: make it not suck
-        if(!this->empty())
-                this->erase(this->begin(), this->end());
+        detail->remove_subtree(this->root);
+        if(this->detail)
+                delete this->detail;
+
+        this->root = new Node(Node::T{0, "##GUARD##"}); // end node
+        this->detail = new TreeMapDetail(this->root, this->root);
 }
 
 bool TreeMap::struct_eq(const TreeMap& another) const {
@@ -562,24 +674,19 @@ bool TreeMap::struct_eq(const TreeMap& another) const {
 }
 
 bool TreeMap::info_eq(const TreeMap& another) const {
-        //TODO: maybe it's just struct equality?
-   assert(0);
-   return false;
+        auto    lit = this->begin(),
+                rit = another.begin();
+        for(;
+                *lit == *rit && lit != this->end() && rit != another.end();
+                lit++, rit++);
+        return lit == this->end() && rit == another.end();
 }
 
 // preincrement
 TreeMap::const_iterator& TreeMap::const_iterator::operator++() {
-        std::cout << "next" << std::endl;
-        if(this->node == TreeMapDetail::end_guard)
-                throw std::out_of_range("already at end");
-
         Node* next = TreeMapDetail::next(this->node);
         if(next == nullptr)
-                next = TreeMapDetail::end_guard;
-        if(this->node == next)
-                std::cout << "wtf";
-
-        std::cout << this->node->data.first << ", " << next->data.first << std::endl;
+                throw std::out_of_range("already at end");
 
         this->node = next;
         return *this;
@@ -608,39 +715,60 @@ TreeMap::const_iterator TreeMap::const_iterator::operator--(int) {
         return old;
 }
 
+#include <utility>
+#include <algorithm>
 
 /// Assignment operator copy the source elements into this object.
-TreeMap& TreeMap::operator=(const TreeMap& other) {
-        //TODO: well, implementing
-   return *this;
+TreeMap& TreeMap::operator=(const TreeMap& m) {
+        TreeMap tmp (m);
+
+        std::swap(this->detail, tmp.detail);
+        std::swap(this->root, tmp.root);
+
+        return *this;
 }
 
 /// Returns an iterator addressing the first element in the map
 TreeMap::iterator TreeMap::begin() {
-        //TODO: some caching maybe?
-        Node* n = this->root;
-        while(n->left)
-                n = n->left;
-        return const_iterator(n);
-}
+        Node* begin = this->detail->begin();
 
-TreeMap::const_iterator TreeMap::begin() const {
+#ifdef _DEBUG
         //TODO: some caching maybe?
         //TODO: less <C-p><C-v>
         Node* n = this->root;
         while(n->left)
                 n = n->left;
-        return const_iterator(n);
+        assert(n == begin);
+#endif
+
+        return const_iterator(begin);
+}
+
+TreeMap::const_iterator TreeMap::begin() const {
+        return const_cast<TreeMap*>(this)->begin();
 }
 
 /// Returns an iterator that addresses the location succeeding the last element in a map
 TreeMap::iterator TreeMap::end() {
-        return iterator(this->detail->end_guard);
+        Node* const end = this->detail->end();
+
+#ifdef _DEBUG
+        //TODO: some caching maybe?
+        Node* n = this->root;
+        while(n->right) {
+                if(n == n->right)
+                        throw std::runtime_error("oops man");
+                n = n->right;
+        }
+        assert(n == end);
+#endif
+
+        return iterator(end);
 }
 
 /// Returns an iterator that addresses the location succeeding the last element in a map
 TreeMap::const_iterator TreeMap::end() const {
-        return const_iterator(this->detail->end_guard);
+        return const_cast<TreeMap*>(this)->end();
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -649,28 +777,6 @@ TreeMap::const_iterator TreeMap::end() const {
 
 /// A helper function that outputs a key-value pair.
 void print(const std::pair<int, std::string>& p) {
-   std::cout<<p.first<<", "<<p.second<<std::endl;
+        std::cout<<p.first<<", "<<p.second<<std::endl;
 }
-
-#include <map>
-
-/// The big mean test function ;)
-void test() {
-   // A typedef used by the test.
-   typedef std::map<int, std::string> TEST_MAP;
-   //typedef SmallMap<int, std::string> TEST_MAP;
-   //typedef TreeMap TEST_MAP;
-
-   std::cout << "Testy uzytkownika" << std::endl;
-
-        TEST_MAP m;
-
-   m[2] = "Merry";
-   m[4] = "Jane";
-   m[8] = "Korwin";
-   m[4] = "Magdalena";
-
-   for_each(m.begin(), m.end(), print );
-   //system("PAUSE");
-
-}
+void test() { }

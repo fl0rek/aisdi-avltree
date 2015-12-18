@@ -29,21 +29,64 @@ ALL RIGHTS RESERVED
 int CCount::count=0;
 
 std::string print_tree(TreeMap& t);
+bool sanity_check(TreeMap& t);
 
 int Test2();
 void test();
 
 int main() {
         TreeMap tm;
-        tm.insert(std::make_pair(1, "1"));
-        tm.insert(std::make_pair(2, "2"));
-        tm.insert(std::make_pair(3, "3"));
+        tm.clear();
         std::cout << print_tree(tm);
+        std::cout << "===========" << std::endl;
+        tm.insert(std::make_pair(2, "2"));
+        if(!sanity_check(tm))
+                std::cout << "oops\n";
+        std::cout << print_tree(tm);
+
+        tm.insert(std::make_pair(1, "1"));
+        if(!sanity_check(tm))
+                std::cout << "oops\n";
+        std::cout << print_tree(tm);
+
+        tm.insert(std::make_pair(3, "3"));
+        if(!sanity_check(tm))
+                std::cout << "oops\n";
+        std::cout << print_tree(tm);
+
+        tm.insert(std::make_pair(4, "4"));
+        if(!sanity_check(tm))
+                std::cout << "oops\n";
+        std::cout << print_tree(tm);
+
+        tm.insert(std::make_pair(5, "5"));
+        if(!sanity_check(tm))
+                std::cout << "oops\n";
+        std::cout << print_tree(tm);
+
+        tm.insert(std::make_pair(6, "6"));
+        if(!sanity_check(tm))
+                std::cout << "oops\n";
+        std::cout << print_tree(tm);
+
+        tm.insert(std::make_pair(7, "7"));
+        if(!sanity_check(tm))
+                std::cout << "oops\n";
+        std::cout << print_tree(tm);
+        for(auto it = tm.begin(); it != tm.end(); it++)
+                std::cout << it->first << std::endl;
+        TreeMap tm2 = tm;
+        std::cout << "c: " << CCount::getCount() << std::endl;
 
         for(auto it = tm.begin(); it != tm.end(); it++)
                 std::cout << it->first << std::endl;
         tm.erase(2);
         std::cout << print_tree(tm);
+
+        std::cout << "c: " << CCount::getCount() << std::endl;
+        tm.clear();
+        std::cout << print_tree(tm);
+        std::cout << "c: " << CCount::getCount() << std::endl;
 }
 
 #if 0
